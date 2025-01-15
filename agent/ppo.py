@@ -1,42 +1,52 @@
 import numpy as np
-import torch
-from torch.nn import functional as F
+import torch as th
 from torch import nn
+from torch.nn import functional as F
+from torch.distributions import Categorical
 
-class Actor(nn.Module):
-    def __init__(self, layers1_num, layers2_num, out_num):
-        super(Actor, self).__init__()
-        self.layers = nn.Sequential(
-            nn.Linear(layers1_num, layers2_num), nn.ReLU(),
-            nn.Linear(layers2_num, out_num)
-        )
-        
-    def forward(self, d_obs, deterministic=False):
-        logits = self.layers(d_obs)
-        if deterministic:
-            action = int(torch.argmax(logits[0]).detach().cpu().numpy())
-            action_prob = 1.0
-        else:
-            c = torch.distributions.Categorical(logits=logits)
-            action = int(c.sample().cpu().numpy()[0])
-            action_prob = float(c.probs[0, action].detach().cpu().numpy())
-        return action, action_prob
 
-    def convert_action(self, action, env_name):
-        if env_name == 'Pong-v0':
-            return action + 2
-        else:
-            return action  # No need to adjust for other environments
+class PPOActor(nn.Module):
+    def __init__(self, state_dim, hidden_dim, action_dim):
+        super(PPOActor, self).__init__()
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
-    def ppo_loss(self, d_obs, action, action_prob, advantage, eps_clip):
-        vs = np.array([[1., 0.], [0., 1.]])  # TODO: Adjust according to your use case
-        ts = torch.FloatTensor(vs[action.cpu().numpy()])
+        self.fc1 = nn.Linear(state_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, action_dim)
+
+        self.initialize_weights()
+
+    def initialize_weights(self):
+        nn.init.orthogonal_(self.fc1.weight)
+        nn.init.orthogonal_(self.fc2.weight)
+        nn.init.orthogonal_(self.fc3.weight)
+        nn.init.constant_(self.fc1.bias, 0)
+        nn.init.constant_(self.fc2.bias, 0)
+        nn.init.constant_(self.fc3.bias, 0)
         
-        logits = self.layers(d_obs)
-        r = torch.sum(F.softmax(logits, dim=1) * ts, dim=1) / action_prob
-        loss1 = r * advantage
-        loss2 = torch.clamp(r, 1 - eps_clip, 1 + eps_clip) * advantage
-        loss = -torch.min(loss1, loss2)
-        loss = torch.mean(loss)
-        
+    def action_sampler(self, logits):
+        action_dist = Categorical(logits=logits)
+        action = action_dist.sample()
+        logp = action_dist.log_prob(action)
+        return action, logp, action_dist
+
+    def forward(self, state):
+        x = state
+        x = F.tanh(self.fc1(x))
+        x = F.tanh(self.fc2(x))
+        logits = self.fc3(x)
+        return logits
+
+    def actor_loss(self, logp, old_logp, advantages, eps_clip):
+        # Calculate ratio (pi_theta / pi_theta_old)
+        imp_weights = th.exp(logp - old_logp)
+        # Calculate surrogate losses
+        surr1 = imp_weights * advantages
+        surr2 = th.clamp(imp_weights, 1.0 - eps_clip, 1.0 + eps_clip) * advantages
+        # Calculate the minimum surrogate loss for clipping
+        loss = -th.min(surr1, surr2).mean()
         return loss
+
+
+

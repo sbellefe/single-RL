@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
 import seaborn as sns
+import sys
 
 class Utils:
     def __init__(self):
@@ -43,6 +44,23 @@ class Utils:
         down_sampled_indices = np.arange(0, len(smoothed_mean_train_returns), down_sample_factor)
         down_sampled_mean_train_returns = smoothed_mean_train_returns[down_sampled_indices]
         down_sampled_train_ci = smoothed_train_ci[down_sampled_indices]
+
+        # Plot training returns (SB added)
+        plt.figure(figsize=(12, 6))
+        train_episodes = np.arange(0, len(mean_train_returns))
+        for i in range(num_trials):
+            plt.scatter(train_episodes, all_train_returns[i], alpha=0.3, label=f'Trial {i + 1}', s=2)
+        plt.scatter(train_episodes, mean_train_returns,  color='black', alpha=0.5, s=6, label='Mean Train Returns')
+        plt.fill_between(
+            train_episodes,
+            mean_train_returns - train_ci,
+            mean_train_returns + train_ci,
+            color='lightblue', alpha=0.3)
+        plt.xlabel('Episodes')
+        plt.ylabel('Training Return')
+        plt.title('Training Returns with 95% Confidence Interval')
+        plt.legend(loc='upper center', ncol=6)
+        plt.show()
 
         # Plot training returns with moving average and confidence interval
         plt.figure(figsize=(12, 6))

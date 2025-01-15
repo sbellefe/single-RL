@@ -4,7 +4,7 @@ import argparse
 from runner.ppo_runner import PPOrunner
 from runner.a2c_runner import A2Crunner
 from env.cartpole import CartPoleEnv
-from env.pong import PongEnv
+# from env.pong import PongEnv
 
 
 def main():
@@ -14,8 +14,8 @@ def main():
     args = parser.parse_args()
 
     if args.env == 'cartpole':
-        env_name = 'CartPole-v1' 
-        env = CartPoleEnv(env_name)
+        env_name = 'CartPole-v1'
+        # env = CartPoleEnv(env_name)
     elif args.env == 'pong':
         env_name = 'PongNoFrameskip-v4'
         env = PongEnv(env_name)
@@ -23,7 +23,7 @@ def main():
         raise ValueError("Environment name incorrect or found")
     
     if args.algo == 'ppo':
-        runner = PPOrunner(env)
+        runner = PPOrunner(env_name)
     elif args.algo == 'a2c':
         runner = A2Crunner(env)
     else:

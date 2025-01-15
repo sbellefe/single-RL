@@ -1,124 +1,124 @@
 import random
 import torch as th
 from torch.distributions import Categorical
-
+from agent.ppo import PPOActor
+from critics.ppo import PPOCritic
 from agent.a2c import A2CActor
 from critics.a2c import A2CCritic
 from helpers.a2c_helper import to_tensor
 from helpers.a2c_bp import BatchTraining
-from util.parameters import ParametersPPO
+from helpers.ppo_helper import BatchProcessing, compute_GAE, testPPO, pre_process
+
 from util.logger import Figure
 from util.a2c_logger import a2c_test
+import sys
+
+device = th.device("cuda" if th.cuda.is_available() else "cpu")
 
 class PPOtrainer:
-    def __init__(self, env_name):
-        self.env_name = env_name
+    def __init__(self, env):
+        self.action_dim = env.action_space.n
+        self.state_dim = env.observation_space.shape[0]
 
-    def train(self, env, actor, critic, nb_episodes, batch_size):
-        tester = Figure()  # Assuming Figure is defined elsewhere
-        params = ParametersPPO()
-        opt = th.optim.Adam([
-            {'params': actor.parameters(), 'lr': params.lr},
-            {'params': critic.parameters(), 'lr': params.lr_c}
-        ])
-        reward_sum_running_avg = None
-        reward_sum_running_avg_history = []
-        training_results = []
-        test_results = []
+    def train(self, env, params, env_name):
+        actor = PPOActor(self.state_dim, params.actor_hidden_dim, self.action_dim)
+        critic = PPOCritic(self.state_dim, params.critic_hidden_dim)
+        actor_opt = th.optim.Adam(actor.parameters(), lr=params.actor_lr)
+        critic_opt = th.optim.Adam(critic.parameters(), lr=params.critic_lr)
 
-        for it in range(nb_episodes):
-            d_obs_history, action_history, action_prob_history, reward_history = [], [], [], []
-            state_val_history = []
-            done_history = []
-            episode_rewards = 0
+        episode_rewards = []
+        test_rewards = []
 
-            for ep in range(params.ep):
-                obs, prev_obs = env.reset(), None
-                obs = obs[0]
-                for t in range(params.t):
-                    d_obs = env.pre_process(obs, prev_obs)
+        n_ep = 0
 
+        for it in range(params.train_iterations):
+            buffer = []
+
+            for ep in range(params.buffer_episodes):
+                state_history = []
+                action_history = []
+                logp_history = []
+                reward_history = []
+                value_history = []
+                done_history = []
+
+
+                state, _ = env.reset()
+                total_reward = 0
+
+                for t in range(params.t_max):
                     with th.no_grad():
-                        action, action_prob = actor(d_obs)
+                        state = pre_process(state)
+                        logits = actor(state)
+                        action, logp, _ = actor.action_sampler(logits)
+                        value = critic(state)
 
-                    state_val = critic(d_obs)
-                    prev_obs = obs
-                    obs, reward, done, truncated, _ = env.step(actor.convert_action(action, self.env_name))
+                    next_state, reward, done, truncated , info = env.step(action.item())
+                    done = done or truncated
 
-                    d_obs_history.append(d_obs)
+                    state_history.append(state)
                     action_history.append(action)
-                    action_prob_history.append(action_prob)
+                    logp_history.append(logp)
                     reward_history.append(reward)
-                    state_val_history.append(state_val)
+                    value_history.append(value)
                     done_history.append(done)
 
-                    episode_rewards += reward
+                    total_reward += reward
+                    state = next_state
 
                     if done:
-                        reward_sum = sum(reward_history[-t:])
-                        reward_sum_running_avg = 0.99 * reward_sum_running_avg + 0.01 * reward_sum if reward_sum_running_avg else reward_sum
-                        reward_sum_running_avg_history.append(reward_sum_running_avg)
                         break
 
-            training_results.append(episode_rewards / params.ep)  # Average reward per episode
+                returns, advantages = compute_GAE(reward_history, value_history, done_history, params.gamma, params.gae_lambda)
 
-            # Compute advantage
-            R = 0
-            discounted_rewards = []
+                episode_rewards.append(total_reward)
+                n_ep += 1
 
-            for r, d in zip(reward_history[::-1], done_history[::-1]):
-                if self.env_name == 'Pong-v0' and r != 0:
-                    R = 0  # Scored/lost a point in pong, so reset reward sum
-                if d is True:
-                    R = 0  # If terminal, R=0
-                R = r + params.gamma * R
-                discounted_rewards.insert(0, R)
+                buffer.append((state_history, action_history, logp_history, value_history, returns, advantages))
 
-            # Normalizing the rewards
-            discounted_rewards = th.FloatTensor(discounted_rewards)
-            discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / discounted_rewards.std()
-            assert len(discounted_rewards) == len(state_val_history)
-            advantage_history = []
-            for i_adv in range(len(discounted_rewards)):
-                adv = discounted_rewards[i_adv] - state_val_history[i_adv]
-                advantage_history.append(adv)
-            assert len(advantage_history) == len(discounted_rewards)
+                if n_ep % params.test_interval == 0:
+                    test_reward = testPPO(env_name, actor, params.test_episodes, params.t_max)
+                    test_rewards.append(test_reward)
+                    print(f'Test reward at episode {n_ep}: {test_reward:.2f}')
 
-            # Update policy
-            for _ in range(params.training_times):
-                idxs = random.sample(range(len(action_history)), batch_size)
-                d_obs_batch = th.cat([d_obs_history[idx] for idx in idxs], 0)
-                action_batch = th.LongTensor([action_history[idx] for idx in idxs])
-                action_prob_batch = th.FloatTensor([action_prob_history[idx] for idx in idxs])
-                advantage_batch = th.FloatTensor([advantage_history[idx] for idx in idxs])
-                state_val_batch = th.FloatTensor([state_val_history[idx] for idx in idxs])
-                discounted_rewards_batch = th.FloatTensor([discounted_rewards[idx] for idx in idxs])
+            batch_process = BatchProcessing()
 
-                opt.zero_grad()
-                loss_a = actor.ppo_loss(d_obs_batch, action_batch, action_prob_batch, advantage_batch, params.eps_clip)
-                loss_c = critic.critic_loss(state_val_batch, discounted_rewards_batch)
-                loss = loss_a + loss_c
-                loss.backward()
-                opt.step()
+            batch_states, batch_actions, batch_logp, batch_values, batch_returns, batch_advantages \
+                = batch_process.collate_batch(buffer, device)
 
-            if it % params.test_interval == 0:
-                # Test 10 times for more accurate results
-                test_sum = 0
-                for test_i in range(params.test_trials):
-                    test_reward = tester.test(env, actor, self.env_name)
-                    test_sum += test_reward
-                test_average = test_sum / params.test_trials
-                test_results.append(test_average)
-                print('Training reward for episode %d: %.2f' % (it, test_average))
+            dataset = th.utils.data.TensorDataset(batch_states, batch_actions, batch_logp, batch_values, batch_returns, batch_advantages)
+            dataloader = th.utils.data.DataLoader(dataset, batch_size=params.mini_batch_size, shuffle=True)
 
-            if it % params.save_episode == 0:
-                if it == 0:
-                    th.save({'actor': actor.state_dict(), 'critic': critic.state_dict()}, 'params.ckpt')
-                else:
-                    if test_average >= max(test_results[:-1]):
-                        th.save({'actor': actor.state_dict(), 'critic': critic.state_dict()}, 'params.ckpt')
+            for _ in range(params.opt_epochs):
+                for batch in dataloader:
+                    states_mb, actions_mb, logp_mb, values_mb, returns_mb, advantages_mb = batch
 
-        return training_results, test_results
+                    states_mb = states_mb.to(device)
+                    actions_mb = actions_mb.to(device)
+                    logp_mb = logp_mb.to(device)
+                    values_mb = values_mb.to(device)
+                    returns_mb = returns_mb.to(device)
+                    advantages_mb = advantages_mb.to(device)
+
+                    #Critic Update
+                    critic_opt.zero_grad()
+                    values_new = critic(states_mb)
+                    critic_loss = critic.critic_loss(values_new, values_mb, returns_mb, params.eps_clip)
+                    critic_loss.backward()
+                    critic_opt.step()
+
+                    #Actor Update
+                    actor_opt.zero_grad()
+                    dist = Categorical(logits=actor(states_mb))
+                    logp_new = dist.log_prob(actions_mb)
+                    entropy = dist.entropy().mean()
+                    actor_loss = actor.actor_loss(logp_new, logp_mb, advantages_mb, params.eps_clip)
+                    actor_loss = actor_loss - params.entropy_coef * entropy
+                    actor_loss.backward()
+                    actor_opt.step()
+
+        print("Algorithm done")
+        return episode_rewards, test_rewards
 
 class DQNtrainer:
     def train(self, env, agent, nb_episodes, batch_size):
