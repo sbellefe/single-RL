@@ -1,19 +1,17 @@
 import math
 import torch as th
 
-class ParametersDQN:
-    def __init__(self):
-        self.load_save_result = False
-
 class ParametersPPO:
     def __init__(self):
+        self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
+
         # training loop hyperparameters
-        self.num_trials = 5
-        self.total_train_episodes = 1000
+        self.num_trials = 1
+        self.total_train_episodes = 200
         self.buffer_episodes = 10  # num episodes in batch buffer
         self.t_max = 500    # max episode length
         self.opt_epochs = 10
-        self.mini_batch_size = 64
+        self.mini_batch_size = 128#64
         self.train_iterations = math.ceil(self.total_train_episodes / self.buffer_episodes) #top-lvl loop index
         self.test_interval = 10  # test every 10 episodes
         self.test_episodes = 10  # test 10 episodes and get average results

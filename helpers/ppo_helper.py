@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import torch as th
 # from env.cartpole import CartPoleEnv
-
+import sys
 
 
 class BatchProcessing:
@@ -48,7 +48,7 @@ class BatchProcessing:
         # sys.exit()
         return batch_states, batch_actions, batch_logp, batch_values, batch_returns, batch_advantages
 
-def compute_GAE(rewards, values, dones, gamma, gae_lambda):
+def compute_GAE(rewards, values, dones, gamma, gae_lambda, device):
     advantages, returns = [], []
     R, gae = 0, 0
 
@@ -65,8 +65,8 @@ def compute_GAE(rewards, values, dones, gamma, gae_lambda):
         returns.insert(0, R)
 
     returns = [th.tensor(agent_returns) for agent_returns in returns]
-    returns = th.stack(returns)
-    advantages = th.stack(advantages)
+    returns = th.stack(returns).to(device)
+    advantages = th.stack(advantages).to(device)
 
     return returns, advantages
 

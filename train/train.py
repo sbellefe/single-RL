@@ -2,9 +2,9 @@ from copy import deepcopy as copy
 import numpy as np
 import torch as th
 from torch.distributions import Categorical
-from agent.ppo_actor import PPOActor
+from agent.ppo import PPOActor
 from critics.ppo_critic import PPOCritic
-from agent.a2c_actor import A2CActor
+from agent.a2c import A2CActor
 from critics.a2c import A2CCritic
 from helpers.a2c_helper import to_tensor, pre_process
 from helpers.a2c_bp import BatchTraining

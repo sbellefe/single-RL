@@ -1,6 +1,9 @@
 import argparse, time
 import gymnasium as gym
 
+import torch
+from torch.profiler import profile, record_function, ProfilerActivity
+
 # Import envs and runners here
 # from runner.ppo_runner import PPOrunner
 # from runner.a2c_runner import A2Crunner
