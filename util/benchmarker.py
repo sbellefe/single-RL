@@ -36,51 +36,51 @@ class Utils:
         margin_of_error = t_value * sample_std / np.sqrt(n)
         avg_max_return_ci = margin_of_error
 
-        # Apply moving average to smooth the training returns
-        smoothed_mean_train_returns = np.convolve(mean_train_returns, np.ones(moving_avg_window) / moving_avg_window, mode='valid')
-        smoothed_train_ci = np.convolve(train_ci, np.ones(moving_avg_window) / moving_avg_window, mode='valid')
+        # # Apply moving average to smooth the training returns
+        # smoothed_mean_train_returns = np.convolve(mean_train_returns, np.ones(moving_avg_window) / moving_avg_window, mode='valid')
+        # smoothed_train_ci = np.convolve(train_ci, np.ones(moving_avg_window) / moving_avg_window, mode='valid')
+        #
+        # # Down-sample the training returns for plotting
+        # down_sampled_indices = np.arange(0, len(smoothed_mean_train_returns), down_sample_factor)
+        # down_sampled_mean_train_returns = smoothed_mean_train_returns[down_sampled_indices]
+        # down_sampled_train_ci = smoothed_train_ci[down_sampled_indices]
 
-        # Down-sample the training returns for plotting
-        down_sampled_indices = np.arange(0, len(smoothed_mean_train_returns), down_sample_factor)
-        down_sampled_mean_train_returns = smoothed_mean_train_returns[down_sampled_indices]
-        down_sampled_train_ci = smoothed_train_ci[down_sampled_indices]
+        # # Plot training returns (SB added)
+        # plt.figure(figsize=(12, 6))
+        # train_episodes = np.arange(0, len(mean_train_returns))
+        # for i in range(num_trials):
+        #     plt.scatter(train_episodes, all_train_returns[i], alpha=0.3, label=f'Trial {i + 1}', s=2)
+        # plt.scatter(train_episodes, mean_train_returns,  color='black', alpha=0.5, s=6, label='Mean Train Returns')
+        # plt.fill_between(
+        #     train_episodes,
+        #     mean_train_returns - train_ci,
+        #     mean_train_returns + train_ci,
+        #     color='lightblue', alpha=0.3)
+        # plt.xlabel('Episodes')
+        # plt.ylabel('Training Return')
+        # plt.title('Training Returns with 95% Confidence Interval')
+        # plt.legend(loc='upper center', ncol=6)
+        # plt.show()
 
-        # Plot training returns (SB added)
-        plt.figure(figsize=(12, 6))
-        train_episodes = np.arange(0, len(mean_train_returns))
-        for i in range(num_trials):
-            plt.scatter(train_episodes, all_train_returns[i], alpha=0.3, label=f'Trial {i + 1}', s=2)
-        plt.scatter(train_episodes, mean_train_returns,  color='black', alpha=0.5, s=6, label='Mean Train Returns')
-        plt.fill_between(
-            train_episodes,
-            mean_train_returns - train_ci,
-            mean_train_returns + train_ci,
-            color='lightblue', alpha=0.3)
-        plt.xlabel('Episodes')
-        plt.ylabel('Training Return')
-        plt.title('Training Returns with 95% Confidence Interval')
-        plt.legend(loc='upper center', ncol=6)
-        plt.show()
+        # # Plot training returns with moving average and confidence interval
+        # plt.figure(figsize=(12, 6))
+        # plt.plot(down_sampled_indices, down_sampled_mean_train_returns, label='Mean Training Returns (Smoothed)', color='blue')
+        # plt.fill_between(down_sampled_indices, down_sampled_mean_train_returns - down_sampled_train_ci, down_sampled_mean_train_returns + down_sampled_train_ci, color='lightblue', alpha=0.3, label='CI')
+        # plt.xlabel('Episodes')
+        # plt.ylabel('Training Return')
+        # plt.title('Training Returns with 95% Confidence Interval (Smoothed)')
+        # plt.legend()
+        # plt.show()
 
-        # Plot training returns with moving average and confidence interval
-        plt.figure(figsize=(12, 6))
-        plt.plot(down_sampled_indices, down_sampled_mean_train_returns, label='Mean Training Returns (Smoothed)', color='blue')
-        plt.fill_between(down_sampled_indices, down_sampled_mean_train_returns - down_sampled_train_ci, down_sampled_mean_train_returns + down_sampled_train_ci, color='lightblue', alpha=0.3, label='CI')
-        plt.xlabel('Episodes')
-        plt.ylabel('Training Return')
-        plt.title('Training Returns with 95% Confidence Interval (Smoothed)')
-        plt.legend()
-        plt.show()
-
-        # Plot density plot of training returns
-        plt.figure(figsize=(12, 6))
-        #sns.kdeplot(mean_train_returns, fill=True, label='Density Plot')
-        sns.kdeplot(mean_train_returns, label='Density Plot')
-        plt.xlabel('Training Return')
-        plt.ylabel('Density')
-        plt.title('Density Plot of Training Returns')
-        plt.legend()
-        plt.show()
+        # # Plot density plot of training returns
+        # plt.figure(figsize=(12, 6))
+        # #sns.kdeplot(mean_train_returns, fill=True, label='Density Plot')
+        # sns.kdeplot(mean_train_returns, label='Density Plot')
+        # plt.xlabel('Training Return')
+        # plt.ylabel('Density')
+        # plt.title('Density Plot of Training Returns')
+        # plt.legend()
+        # plt.show()
 
         # Plot test returns
         plt.figure(figsize=(12, 6))

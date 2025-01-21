@@ -1,7 +1,7 @@
 import gymnasium as gym
 import numpy as np
 import torch as th
-from env.cartpole import CartPoleEnv
+# from env.cartpole import CartPoleEnv
 
 
 
@@ -71,7 +71,8 @@ def compute_GAE(rewards, values, dones, gamma, gae_lambda):
     return returns, advantages
 
 def testPPO(env_name, actor, test_episodes, t_max):
-    env = CartPoleEnv(env_name)
+    # env = gym.make(env_name, render_mode='human')
+    env = gym.make(env_name)
     test_rewards = np.zeros(test_episodes)
 
     for i in range(test_episodes):
@@ -79,9 +80,9 @@ def testPPO(env_name, actor, test_episodes, t_max):
         state, _ = env.reset()
 
         for t in range(t_max):
-            state = env.pre_process(state,_)
+            state = pre_process(state)
             logits = actor(state)
-            action, _, _ = actor.action_sampler(logits)
+            action, _, _ = actor.sample_action(logits)
             next_state, reward, done, _, _ = env.step(action.item())
 
             total_reward += reward

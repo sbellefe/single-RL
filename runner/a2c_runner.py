@@ -5,21 +5,25 @@ from util.parameters import ParametersA2C
 from train.train import A2Ctrainer
 from helpers.a2c_helper import initialize_environment
 from util.benchmarker import Utils
+import gymnasium as gym
+
 
 class A2Crunner:
-    def __init__(self, env):
-        self.env = env
+    def __init__(self, env_name):
+        self.env_name = env_name
+        self.env = gym.make(env_name)
 
     def run_experiment(self):
-        params = ParametersA2C(self.env.env_name)
-        trainer_a2c = A2Ctrainer()
+        params = ParametersA2C()
+        trainer_a2c = A2Ctrainer(self.env_name)
         num_trials = params.num_trials
 
-        state_dim, action_dim, action_offset = initialize_environment(self.env)
+        state_dim, action_dim, action_offset = initialize_environment(self.env, self.env_name)
         self.env.reset()
 
         train_params = {
-            'env': self.env,
+            'env': self.env_name,
+            'env_name': self.env_name,
             'state_dim': state_dim,
             'action_dim': action_dim,
             'action_offset': action_offset,
@@ -37,9 +41,9 @@ class A2Crunner:
             'num_test_episodes': params.config_A2C['num_test_episodes']
         }
 
-        Load_save_result = params.Load_save_result
+        load_save_result = params.load_save_result
         
-        if Load_save_result is False or not os.path.isfile('all_train_returns.npy') or not os.path.isfile('all_test_returns.npy'):
+        if load_save_result is False or not os.path.isfile('all_train_returns.npy') or not os.path.isfile('all_test_returns.npy'):
             all_train_returns = []
             all_test_returns = []
 

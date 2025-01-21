@@ -35,5 +35,7 @@ class PPOrunner():
         print(f"Max Return: {max_return}")
         print(f"Max Return 95% CI: {max_return_ci}")
         print(f"Individual Max Returns: {individual_returns}")
-        print("Completed experiment")        
+        print("Completed experiment")
+
+    def train(self):
 

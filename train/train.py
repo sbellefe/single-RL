@@ -1,11 +1,12 @@
-import random
+from copy import deepcopy as copy
+import numpy as np
 import torch as th
 from torch.distributions import Categorical
-from agent.ppo import PPOActor
-from critics.ppo import PPOCritic
-from agent.a2c import A2CActor
+from agent.ppo_actor import PPOActor
+from critics.ppo_critic import PPOCritic
+from agent.a2c_actor import A2CActor
 from critics.a2c import A2CCritic
-from helpers.a2c_helper import to_tensor
+from helpers.a2c_helper import to_tensor, pre_process
 from helpers.a2c_bp import BatchTraining
 from helpers.ppo_helper import BatchProcessing, compute_GAE, testPPO, pre_process
 
@@ -16,13 +17,12 @@ import sys
 device = th.device("cuda" if th.cuda.is_available() else "cpu")
 
 class PPOtrainer:
-    def __init__(self, env):
-        self.action_dim = env.action_space.n
-        self.state_dim = env.observation_space.shape[0]
+    def __init__(self):
+        pass
 
-    def train(self, env, params, env_name):
-        actor = PPOActor(self.state_dim, params.actor_hidden_dim, self.action_dim)
-        critic = PPOCritic(self.state_dim, params.critic_hidden_dim)
+    def train(self, env, params):
+        actor = PPOActor(params.state_dim, params.actor_hidden_dim, params.action_dim)
+        critic = PPOCritic(params.state_dim, params.critic_hidden_dim)
         actor_opt = th.optim.Adam(actor.parameters(), lr=params.actor_lr)
         critic_opt = th.optim.Adam(critic.parameters(), lr=params.critic_lr)
 
@@ -53,7 +53,7 @@ class PPOtrainer:
                         action, logp, _ = actor.action_sampler(logits)
                         value = critic(state)
 
-                    next_state, reward, done, truncated , info = env.step(action.item())
+                    next_state, reward, done, truncated, info = env.step(action.item())
                     done = done or truncated
 
                     state_history.append(state)
@@ -77,7 +77,7 @@ class PPOtrainer:
                 buffer.append((state_history, action_history, logp_history, value_history, returns, advantages))
 
                 if n_ep % params.test_interval == 0:
-                    test_reward = testPPO(env_name, actor, params.test_episodes, params.t_max)
+                    test_reward = testPPO(copy(actor), copy(env), params.test_episodes, params.t_max)
                     test_rewards.append(test_reward)
                     print(f'Test reward at episode {n_ep}: {test_reward:.2f}')
 
@@ -87,7 +87,7 @@ class PPOtrainer:
                 = batch_process.collate_batch(buffer, device)
 
             dataset = th.utils.data.TensorDataset(batch_states, batch_actions, batch_logp, batch_values, batch_returns, batch_advantages)
-            dataloader = th.utils.data.DataLoader(dataset, batch_size=params.mini_batch_size, shuffle=True)
+            dataloader = th.utils.data.DataLoader(dataset, batch_size=params.batch_size, shuffle=True)
 
             for _ in range(params.opt_epochs):
                 for batch in dataloader:
@@ -120,6 +120,34 @@ class PPOtrainer:
         print("Algorithm done")
         return episode_rewards, test_rewards
 
+    def test(self, actor, env, test_episodes, t_max):
+        # env.render(mode="human")
+
+        test_rewards = np.zeros(test_episodes)
+
+        for i in range(test_episodes):
+            total_reward = 0
+            state, _ = env.reset()
+
+            for t in range(t_max):
+                state = pre_process(state)
+                logits = actor(state)
+                action, _, _ = actor.action_sampler(logits)
+                next_state, reward, done, _, _ = env.step(action.item())
+
+                total_reward += reward
+                state = next_state
+                if done:
+                    break
+
+            test_rewards[i] = total_reward
+
+        env.close()
+        average_reward = np.mean(test_rewards)
+        return average_reward
+
+
+
 class DQNtrainer:
     def train(self, env, agent, nb_episodes, batch_size):
         print("DQNtrainer")
@@ -128,7 +156,7 @@ class A2Ctrainer:
     def __init__(self, env_name):
         self.env_name = env_name
 
-    def train(self, env, state_dim, action_dim, action_offset ,gamma, actor_hidden_dim, critic_hidden_dim,
+    def train(self, env, env_name, state_dim, action_dim, action_offset ,gamma, actor_hidden_dim, critic_hidden_dim,
             value_dim, alpha, beta, num_training_episodes ,num_batch_episodes, t_max, tau,
             test_interval, num_test_episodes):
         
@@ -147,7 +175,7 @@ class A2Ctrainer:
             batch_buffer = []
             batch_rtrns = []
             for e in range(num_batch_episodes):
-                state = env.reset()
+                state, _ = env.reset()
                 prev_state = None
                 total_reward = 0
                 done = False
@@ -160,10 +188,11 @@ class A2Ctrainer:
                         state_tensor = env.pre_process(state, prev_state)
                     else:
                         state_tensor = to_tensor(state)
+
                     logits = actor(state_tensor)
                     action, dist = actor.action_sampler(logits)
                     converted_action = action.item() + action_offset
-                    next_state, reward, done, info = env.step(converted_action)
+                    next_state, reward, done, _, info = env.step(converted_action)
                     if 'PongNoFrameskip-v4' in self.env_name:
                         next_state_tensor = env.pre_process(next_state, state)
                     else:
@@ -195,9 +224,9 @@ class A2Ctrainer:
                 if episode % test_interval == 0:
                     actor_state = actor.state_dict()
 
-                    test_reward = a2c_test(env, actor, num_test_episodes, t_max, action_offset)
+                    test_reward = a2c_test(env_name, actor, num_test_episodes, t_max, action_offset)
                     test_rewards.append(test_reward)
-
+                    print(f'Test reward at episode {episode}: {test_reward:.2f}')
                     actor.load_state_dict(actor_state)
 
             batch_training = BatchTraining()

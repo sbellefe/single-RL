@@ -7,8 +7,8 @@ def to_tensor(x):
         return th.from_numpy(x).float()
     return x
 
-def initialize_environment(env):
-    if 'PongNoFrameskip-v4' in env.env_name:
+def initialize_environment(env, env_name):
+    if 'PongNoFrameskip-v4' in env_name:
         state_dim = 6000
         action_dim = 2
         action_offset = 2
@@ -18,3 +18,6 @@ def initialize_environment(env):
         action_offset = 0
 
     return state_dim, action_dim, action_offset
+
+def pre_process(state):
+    return th.FloatTensor(state).unsqueeze(0)
