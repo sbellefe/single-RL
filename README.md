@@ -1,33 +1,41 @@
 # single-RL
+## requirements: 
+```pip install -r requirements.txt```
+
 ## agent: 
-ppo.py: the code of the framework of PPO
+ppo.py: Contains PPOActor and PPOCritic classes.
 
-dqn.py: 
+dqn.py: Contains DQNetwork agent class.
 
-a2c.py: The code of the framework of A2C
+a2c.py: Contains A2CActor and A2Critic classes.
+
+## runner:
+runner.py: Contains ALGORunner class and run_experiment method (used for all algorithms).
+
+## trainer:
+ppo_trainer.py: Contains PPOtrainer class.
+
+dqn_trainer.py: Contains DQNtrainer class.
+
+a2c_trainer.py: Contains trainer class.
 
 ## env:
-pong.py: the environment of Pong, need to be installed manually; how to preprocess the data
+Implemented using Gymnasium:
+- CartPole-v1
 
-PONG MAY NOT WORK FOR PPO
+## helper:
 
-cartpole.py: the environment of CartPole. For A2C, requires Gym version 0.25.2. For PPO, requires Gym environment 0.26.2.
-
-To install gym version:
-
-pip install gym=='0.26.2' for PPO
-
-pip install gym=='0.25.2' for A2C
-
-## doc:
-how to install the gym and Atari package as the environment
+Contains additional classes and functions for training algorithms (e.g. replay buffer).
 
 ## util:
-logger.py: test the model and draw the figures
 
-train.py: the training process; each algorithm has its own class
+benchmarker.py: Plot training and testing results.
+
+parameters.py: Hyperparameter classes for each algorithm.
 
 ## main.py:
+
 Use this command in terminal to run code:
 
-terminal: python main.py --env MY_ENV_HERE --algo MY_ALGO_HERE
+```python main.py --env MY_ENV_HERE --algo MY_ALGO_HERE```\
+e.g ```python main.py --env cartpole --algo ppo```

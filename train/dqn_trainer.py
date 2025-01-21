@@ -8,7 +8,7 @@ import torch as th
 
 from torch.distributions import Categorical
 
-from agent.dqn_agent import QNetwork
+from agent.dqn import DQNetwork
 from helpers.dqn_helper import ReplayMemory, pre_process, soft_update
 
 class DQNtrainer:
@@ -18,7 +18,7 @@ class DQNtrainer:
     def train(self, env, params):
         device = params.device
         #initialize policy and target networks
-        Q = QNetwork(params.state_dim, params.hidden_dim, params.action_dim).to(device)
+        Q = DQNetwork(params.state_dim, params.hidden_dim, params.action_dim).to(device)
         Q_prime = deepcopy(Q).to(device)
 
         opt = th.optim.Adam(Q.parameters(), lr=params.actor_lr, amsgrad=True)
@@ -31,7 +31,7 @@ class DQNtrainer:
 
         for ep in range(params.total_train_episodes):
             obs, _ = env.reset()
-            state = pre_process(obs)
+            state = pre_process(obs).to(device)
 
             total_reward = 0
 

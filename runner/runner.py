@@ -1,9 +1,9 @@
-import os, sys
+import os, sys, time
 import numpy as np
 import torch as th
 from util.benchmarker import Utils
 
-device = th.device("cuda" if th.cuda.is_available() else "cpu")
+from torch.profiler import profile, record_function, ProfilerActivity
 
 class ALGOrunner():
     def __init__(self, env, trainer):
@@ -20,7 +20,21 @@ class ALGOrunner():
                 print(f"Trial: {trial + 1}")
                 trainer = self.trainer()
 
+                # print(th.cuda.is_available())
+                # print(th.cuda.current_device())
+                # print(th.cuda.get_device_name(0))
+                # # device = th.device('cpu')
+                # x = th.randn(100000, 100000, device=params.device)
+                # start = time.time()
+                # y = th.mm(x,x)
+                # end = time.time()
+                # print(f"Time taken: {end-start}")
+                # sys.exit()
+                # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+                #              on_trace_ready=th.profiler.tensorboard_trace_handler('./log')) as prof:
+                    # with record_function('model_training'):
                 train_rewards, test_rewards = trainer.train(self.env, params)
+                # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
                 all_train_returns.append(train_rewards)
                 all_test_returns.append(test_rewards)

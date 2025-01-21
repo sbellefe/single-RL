@@ -1,21 +1,20 @@
+import sys
 from copy import deepcopy
 import numpy as np
 import torch as th
 from torch.distributions import Categorical
 
-from agent.ppo_actor import PPOActor
-from critics.ppo_critic import PPOCritic
+from agent.ppo import PPOActor, PPOCritic
 from helpers.ppo_helper import BatchProcessing, compute_GAE, pre_process
-
-device = th.device("cuda" if th.cuda.is_available() else "cpu")
 
 class PPOtrainer:
     def __init__(self):
         pass
 
     def train(self, env, params):
-        actor = PPOActor(params.state_dim, params.actor_hidden_dim, params.action_dim)
-        critic = PPOCritic(params.state_dim, params.critic_hidden_dim)
+        device = params.device
+        actor = PPOActor(params.state_dim, params.actor_hidden_dim, params.action_dim).to(device)
+        critic = PPOCritic(params.state_dim, params.critic_hidden_dim).to(device)
         actor_opt = th.optim.Adam(actor.parameters(), lr=params.actor_lr)
         critic_opt = th.optim.Adam(critic.parameters(), lr=params.critic_lr)
 
@@ -40,7 +39,7 @@ class PPOtrainer:
 
                 for t in range(params.t_max):
                     with th.no_grad():
-                        state = pre_process(obs)
+                        state = pre_process(obs).to(device)
                         logits = actor(state)
                         action, logp, _ = actor.sample_action(logits)
                         value = critic(state)
@@ -62,7 +61,7 @@ class PPOtrainer:
                         break
 
                 returns, advantages = compute_GAE(reward_history, value_history, done_history, params.gamma,
-                                                  params.gae_lambda)
+                                                  params.gae_lambda, device)
 
                 episode_rewards.append(total_reward)
                 n_ep += 1
@@ -70,29 +69,29 @@ class PPOtrainer:
                 buffer.append((state_history, action_history, logp_history, value_history, returns, advantages))
 
                 if n_ep % params.test_interval == 0:
-                    test_reward = self.test(deepcopy(actor), deepcopy(env), params.test_episodes, params.t_max)
+                    test_reward = self.test(deepcopy(actor), deepcopy(env), params.test_episodes, params.t_max, device)
                     test_rewards.append(test_reward)
                     print(f'Test reward at episode {n_ep}: {test_reward:.2f}')
 
             batch_process = BatchProcessing()
 
             batch_states, batch_actions, batch_logp, batch_values, batch_returns, batch_advantages \
-                = batch_process.collate_batch(buffer, device)
+                = batch_process.collate_batch(buffer, params.device)
 
             dataset = th.utils.data.TensorDataset(batch_states, batch_actions, batch_logp, batch_values, batch_returns,
                                                   batch_advantages)
-            dataloader = th.utils.data.DataLoader(dataset, batch_size=params.batch_size, shuffle=True)
+            dataloader = th.utils.data.DataLoader(dataset, batch_size=params.mini_batch_size, shuffle=True)
 
             for _ in range(params.opt_epochs):
                 for batch in dataloader:
                     states_mb, actions_mb, logp_mb, values_mb, returns_mb, advantages_mb = batch
 
-                    states_mb = states_mb.to(device)
-                    actions_mb = actions_mb.to(device)
-                    logp_mb = logp_mb.to(device)
-                    values_mb = values_mb.to(device)
-                    returns_mb = returns_mb.to(device)
-                    advantages_mb = advantages_mb.to(device)
+                    states_mb = states_mb.to(params.device)
+                    actions_mb = actions_mb.to(params.device)
+                    logp_mb = logp_mb.to(params.device)
+                    values_mb = values_mb.to(params.device)
+                    returns_mb = returns_mb.to(params.device)
+                    advantages_mb = advantages_mb.to(params.device)
 
                     # Critic Update
                     critic_opt.zero_grad()
@@ -114,9 +113,9 @@ class PPOtrainer:
         print("Algorithm done")
         return episode_rewards, test_rewards
 
-    def test(self, actor, env, test_episodes, t_max):
-        # env.render(mode="human")
+    def test(self, actor, env, test_episodes, t_max, device):
 
+        # env.render(mode="human")
         test_rewards = np.zeros(test_episodes)
 
         for i in range(test_episodes):
@@ -124,7 +123,7 @@ class PPOtrainer:
             obs, _ = env.reset()
 
             for t in range(t_max):
-                state = pre_process(obs)
+                state = pre_process(obs).to(device)
                 logits = actor(state)
                 action, _, _ = actor.sample_action(logits)
                 next_obs, reward, done, _, _ = env.step(action.item())

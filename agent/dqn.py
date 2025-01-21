@@ -5,9 +5,9 @@ from torch import nn
 from torch.nn import functional as F
 
 
-class QNetwork(nn.Module):
+class DQNetwork(nn.Module):
     def __init__(self, state_dim, hidden_dim, action_dim):
-        super(QNetwork, self).__init__()
+        super(DQNetwork, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
 
