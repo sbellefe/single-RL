@@ -24,12 +24,6 @@ class PPOActor(nn.Module):
         nn.init.constant_(self.fc1.bias, 0)
         nn.init.constant_(self.fc2.bias, 0)
         nn.init.constant_(self.fc3.bias, 0)
-        
-    def sample_action(self, logits):
-        action_dist = Categorical(logits=logits)
-        action = action_dist.sample()
-        logp = action_dist.log_prob(action)
-        return action, logp, action_dist
 
     def forward(self, state):
         x = state
@@ -37,6 +31,13 @@ class PPOActor(nn.Module):
         x = F.tanh(self.fc2(x))
         logits = self.fc3(x)
         return logits
+
+    @staticmethod
+    def select_action(logits):
+        action_dist = Categorical(logits=logits)
+        action = action_dist.sample()
+        logp = action_dist.log_prob(action)
+        return action, logp, action_dist
 
     def actor_loss(self, logp, old_logp, advantages, eps_clip):
         # Calculate ratio (pi_theta / pi_theta_old)
@@ -58,8 +59,6 @@ class PPOCritic(nn.Module):
         self.fc3 = nn.Linear(hidden_dim, 1)
 
         self.initialize_weights()
-
-
 
     def initialize_weights(self):
         nn.init.orthogonal_(self.fc1.weight)
@@ -83,7 +82,3 @@ class PPOCritic(nn.Module):
         loss_clipped = (value_clip - returns).pow(2)
         loss = th.max(loss_unclipped, loss_clipped).mean()
         return loss
-
-
-
-

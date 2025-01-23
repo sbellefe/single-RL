@@ -1,23 +1,34 @@
 import torch as th
-import numpy as np
-
-# Helper function to convert numpy arrays to tensors
-def to_tensor(x):
-    if isinstance(x, np.ndarray):
-        return th.from_numpy(x).float()
-    return x
-
-def initialize_environment(env, env_name):
-    if 'PongNoFrameskip-v4' in env_name:
-        state_dim = 6000
-        action_dim = 2
-        action_offset = 2
-    else:
-        state_dim = env.observation_space.shape[0]
-        action_dim = env.action_space.n
-        action_offset = 0
-
-    return state_dim, action_dim, action_offset
+#TODO: standardize rewards? Critic Soft Update??
 
 def pre_process(state):
-    return th.FloatTensor(state).unsqueeze(0)
+    return th.FloatTensor(state)
+
+class BatchTraining:
+    def __init__(self):
+        pass
+
+    def collate_batch(self, buffer, rtrns):
+        """process buffer into batch tensors once buffer is full"""
+        batch_states = []
+        batch_actions = []
+        batch_rewards = []
+        batch_next_states = []
+        batch_rtrns = []
+
+        # Extract data from buffer
+        for (data, rtrn) in zip(buffer, rtrns):
+            state, action, reward, next_state = data
+            batch_states.append(state)
+            batch_actions.append(action)
+            batch_rewards.append(reward)
+            batch_next_states.append(next_state)
+            batch_rtrns.append(rtrn)
+
+        batch_states = th.stack(batch_states)
+        batch_actions = th.stack(batch_actions)
+        batch_rewards = th.tensor(batch_rewards, dtype=th.float32)
+        batch_next_states = th.stack(batch_next_states)
+        batch_rtrns = th.tensor(batch_rtrns, dtype=th.float32)
+
+        return batch_states, batch_actions, batch_rewards, batch_next_states, batch_rtrns

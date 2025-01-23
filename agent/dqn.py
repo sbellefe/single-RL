@@ -1,5 +1,4 @@
 import random, sys
-import numpy as np
 import torch as th
 from torch import nn
 from torch.nn import functional as F
@@ -12,14 +11,10 @@ class DQNetwork(nn.Module):
         self.action_dim = action_dim
 
         self.fc1 = nn.Linear(state_dim, hidden_dim)
-        # self.fc2 = nn.Linear(hidden_dim, action_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
         self.fc3 = nn.Linear(hidden_dim, action_dim)
 
         # self.initialize_weights()
-
-        self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
-
 
     def initialize_weights(self):
         nn.init.orthogonal_(self.fc1.weight)
@@ -29,46 +24,26 @@ class DQNetwork(nn.Module):
         nn.init.constant_(self.fc2.bias, 0)
         nn.init.constant_(self.fc3.bias, 0)
 
-    def forward(self, x):
+    def forward(self, state):
+        x = state
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         Q = self.fc3(x)
         return Q
 
-    # def forward(self, x):
-    #     x = F.relu(self.fc1(x))
-    #     x = F.relu(self.fc2(x))
-    #     Q = self.fc3(x)
-    #     return Q
+    def select_action(self, state, params, env, testing=False):
+        """" note that current training epsilon is calculated
+              dynamically as an attribute of class ParametersDQN """
+        epsilon = params.eps_test if testing else params.epsilon
+        sample = random.random()
 
-    def select_action(self, state, epsilon, env):
         # Epsilon-greedy action selection
-        if random.random() > epsilon:
+        if sample > epsilon:
             with th.no_grad():
-                Q = self(state)
-                greedy_action = Q.argmax(axis=1).cpu()
-                # action = Q.max(1).indices.view(1, 1)
-                # print(f"Action (GREEDY): {action}")
+                Q_values = self(state)
+                greedy_action = Q_values.max(1).indices.view(1,1)
                 return greedy_action
         else:
-            # action = th.tensor([[random.randrange(self.action_dim)]], device=self.device, dtype=th.long)
-            random_action = th.tensor([env.action_space.sample()], device=self.device)
-            # action = th.tensor([env.action_space.sample()], device=self.device)
-            # action = th.tensor([action], dtype=th.float, device=self.device)
-            # print(f"Action (RANDOM): {action}")
+            random_action = th.tensor([[env.action_space.sample()]], device=params.device, dtype=th.long)
             return random_action
 
-
-        # global steps_done
-        # sample = random.random()
-        # eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-        #                 math.exp(-1. * steps_done / EPS_DECAY)
-        # steps_done += 1
-        # if sample > eps_threshold:
-        #     with torch.no_grad():
-        #         # t.max(1) will return the largest column value of each row.
-        #         # second column on max result is index of where max element was
-        #         # found, so we pick action with the larger expected reward.
-        #         return policy_net(state).max(1).indices.view(1, 1)
-        # else:
-        #     return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)

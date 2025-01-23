@@ -1,10 +1,11 @@
 import random
 import torch as th
-
 from collections import deque, namedtuple
 
-device = th.device("cuda" if th.cuda.is_available() else "cpu")
 
+def pre_process(obs):
+    state = th.tensor(obs, dtype=th.float32).unsqueeze(0)
+    return state
 
 class ReplayMemory(object):
     transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'done'))
@@ -25,10 +26,6 @@ class ReplayMemory(object):
     def __len__(self):
         return len(self.memory)
 
-def pre_process(obs):
-    state = th.tensor(obs, dtype=th.float32, device=device).unsqueeze(0)
-    return state
-
 def soft_update(Q, Q_prime, tau):
     """
         Softly updates the target agent network parameters.
@@ -40,5 +37,4 @@ def soft_update(Q, Q_prime, tau):
             tau (float): The soft update rate (0 < tau <= 1).
         """
     for Q_prime, policy_param in zip(Q_prime.parameters(), Q.parameters()):
-        Q_prime.data.copy_(tau * policy_param.data + (1.0 - tau) * Q_prime.data
-        )
+        Q_prime.data.copy_(tau * policy_param.data + (1.0 - tau) * Q_prime.data)

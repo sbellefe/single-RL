@@ -1,5 +1,6 @@
 import sys
 from copy import deepcopy
+import gymnasium as gym
 import numpy as np
 import torch as th
 from torch.distributions import Categorical
@@ -38,15 +39,19 @@ class PPOtrainer:
                 total_reward = 0
 
                 for t in range(params.t_max):
+                    state = pre_process(obs).to(device)
+
+                    #select action, compute value estimate
                     with th.no_grad():
-                        state = pre_process(obs).to(device)
                         logits = actor(state)
-                        action, logp, _ = actor.sample_action(logits)
+                        action, logp, _ = actor.select_action(logits)
                         value = critic(state)
 
+                    #take a step
                     next_obs, reward, done, truncated, _ = env.step(action.item())
                     done = done or truncated
 
+                    #store transition
                     state_history.append(state)
                     action_history.append(action)
                     logp_history.append(logp)
@@ -60,28 +65,32 @@ class PPOtrainer:
                     if done:
                         break
 
-                returns, advantages = compute_GAE(reward_history, value_history, done_history, params.gamma,
-                                                  params.gae_lambda, device)
-
                 episode_rewards.append(total_reward)
                 n_ep += 1
 
+                #compute returns and advantages for episode, add episode to buffer
+                returns, advantages = compute_GAE(reward_history, value_history, done_history, params.gamma,
+                                                  params.gae_lambda, device)
                 buffer.append((state_history, action_history, logp_history, value_history, returns, advantages))
 
+                #test at interval and print result
                 if n_ep % params.test_interval == 0:
-                    test_reward = self.test(deepcopy(actor), deepcopy(env), params.test_episodes, params.t_max, device)
+                    test_reward = self.test(deepcopy(actor), params)
                     test_rewards.append(test_reward)
-                    print(f'Test reward at episode {n_ep}: {test_reward:.2f}')
+                    print(f'Test reward at episode {n_ep}: {test_reward:.2f} '
+                          f'(train reward: {total_reward:.2f})')
 
+            #process buffer once full
             batch_process = BatchProcessing()
-
             batch_states, batch_actions, batch_logp, batch_values, batch_returns, batch_advantages \
                 = batch_process.collate_batch(buffer, params.device)
 
+            #convert to dataset and initialize dataloader for mini_batch sampling
             dataset = th.utils.data.TensorDataset(batch_states, batch_actions, batch_logp, batch_values, batch_returns,
                                                   batch_advantages)
             dataloader = th.utils.data.DataLoader(dataset, batch_size=params.mini_batch_size, shuffle=True)
 
+            #optimization loop
             for _ in range(params.opt_epochs):
                 for batch in dataloader:
                     states_mb, actions_mb, logp_mb, values_mb, returns_mb, advantages_mb = batch
@@ -110,31 +119,34 @@ class PPOtrainer:
                     actor_loss.backward()
                     actor_opt.step()
 
-        print("Algorithm done")
+        print("Trial done")
         return episode_rewards, test_rewards
 
-    def test(self, actor, env, test_episodes, t_max, device):
+    @staticmethod
+    def test(actor, params):
+        """tests agent and averages result, add keyword render_mode="human"
+            to the line below to watch testing"""
+        test_env = gym.make(params.env_name)  # , render_mode="human")
 
-        # env.render(mode="human")
-        test_rewards = np.zeros(test_episodes)
+        test_rewards = np.zeros(params.test_episodes)
 
-        for i in range(test_episodes):
+        for i in range(params.test_episodes):
             total_reward = 0
-            obs, _ = env.reset()
+            obs, _ = test_env.reset()
 
-            for t in range(t_max):
-                state = pre_process(obs).to(device)
+            for t in range(params.t_max):
+                state = pre_process(obs)
                 logits = actor(state)
-                action, _, _ = actor.sample_action(logits)
-                next_obs, reward, done, _, _ = env.step(action.item())
+                action, _, _ = actor.select_action(logits)
+                next_obs, reward, done, trunc, _ = test_env.step(action.item())
 
                 total_reward += reward
                 obs = next_obs
-                if done:
+                if done or trunc:
                     break
 
             test_rewards[i] = total_reward
 
-        env.close()
+        test_env.close()
         average_reward = np.mean(test_rewards)
         return average_reward
