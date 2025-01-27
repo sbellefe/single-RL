@@ -16,7 +16,6 @@ class BatchProcessing:
 
         for data in buffer:
             state, action, logp, value, rtrn, adv = data
-
             state = th.stack(state).to(device)
             action = th.stack(action).to(device)
             logp = th.stack(logp).to(device)
@@ -42,24 +41,29 @@ class BatchProcessing:
 
         return batch_states, batch_actions, batch_logp, batch_values, batch_returns, batch_advantages
 
-def compute_GAE(rewards, values, dones, gamma, gae_lambda, device):
+def compute_GAE(rewards, values, gamma, gae_lambda, device):
     advantages, returns = [], []
-    R, gae = 0, 0
-
-    values = values + [th.zeros_like(values[0])]
+    R, gae = 0, 0 #set final next state advantage and return = 0
 
     for t in reversed(range(len(rewards))):
-        next_non_terminal = 1.0 - dones[t]
+        #compute TD error
+        delta = rewards[t] + gamma * values[t + 1] - values[t]
 
-        delta = rewards[t] + gamma * values[t + 1] * next_non_terminal - values[t]
-        gae = delta + gamma * gae_lambda * next_non_terminal * gae
+        #compute GAE advantage
+        gae = delta + gamma * gae_lambda * gae
+
+        #Compute discounted return. only immediate reward if t is terminal state
+        R = rewards[t] + gamma * R
+
+        #store advantage and return in list
         advantages.insert(0, gae)
-
-        R = rewards[t] + gamma * R * next_non_terminal
         returns.insert(0, R)
 
+    #convert lists to tensors
     returns = [th.tensor(agent_returns) for agent_returns in returns]
     returns = th.stack(returns).to(device)
     advantages = th.stack(advantages).to(device)
+
+    del values[-1]  # remove final next state value from buffer
 
     return returns, advantages

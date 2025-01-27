@@ -33,7 +33,6 @@ class PPOtrainer:
                 logp_history = []
                 reward_history = []
                 value_history = []
-                done_history = []
 
                 obs, _ = env.reset()
                 total_reward = 0
@@ -48,8 +47,7 @@ class PPOtrainer:
                         value = critic(state)
 
                     #take a step
-                    next_obs, reward, done, truncated, _ = env.step(action.item())
-                    done = done or truncated
+                    next_obs, reward, terminated, truncated, _ = env.step(action.item())
 
                     #store transition
                     state_history.append(state)
@@ -57,20 +55,27 @@ class PPOtrainer:
                     logp_history.append(logp)
                     reward_history.append(reward)
                     value_history.append(value)
-                    done_history.append(done)
 
                     total_reward += reward
                     obs = next_obs
 
-                    if done:
+                    #logic for episode termination/truncation
+                    if truncated:   #Compute next value if episode env timelimit is reached
+                        next_state = pre_process(obs).to(device)
+                        with th.no_grad():
+                            next_value = critic(next_state)
+                        value_history.append(next_value)
+                        break
+                    if terminated: #Compute next value = 0 if terminal state reached
+                        next_value = th.zeros_like(value)
+                        value_history.append(next_value)
                         break
 
                 episode_rewards.append(total_reward)
                 n_ep += 1
 
                 #compute returns and advantages for episode, add episode to buffer
-                returns, advantages = compute_GAE(reward_history, value_history, done_history, params.gamma,
-                                                  params.gae_lambda, device)
+                returns, advantages = compute_GAE(reward_history, value_history, params.gamma, params.gae_lambda, device)
                 buffer.append((state_history, action_history, logp_history, value_history, returns, advantages))
 
                 #test at interval and print result
