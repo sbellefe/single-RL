@@ -1,3 +1,14 @@
+**Note:** This repository is a personal fork of [Deepinlab2023/single-RL](https://github.com/Deepinlab2023/single-RL), originally developed under **Dr. Lei Lei** during my graduate research at the University of Guelph.
+I contributed a significant rework of the repository with a focus on:
+ - **Code clarity** and **maintainability**: streamlined the file structure and reduced redundant logic.
+ - **Algorithm coverage**: added a missing DQN implementation and modified A2C.
+ - **PPO improvements**: integrated Generalized Advantage Estimation (GAE), improved network weight initialization, and value loss clipping for better training stability.
+ - **Framework modernization**: migrated from the deprecated `gym` package to `gymnasium`.
+ - **Usability upgrades**: added a `requirements.txt` and updated the README for better documentation and reproducibility.
+ - **Benchmarking**: completed test runs and added results.
+
+
+
 # single-RL
 
 Implementation of single-agent RL algorithms in CartPole environment.
